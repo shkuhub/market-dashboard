@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toss Style Market Dashboard</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
+
+        :root {
+            --bg-base: #f2f4f6;
+            --bg-card: #ffffff;
+            --text-primary: #191f28;
+            --text-secondary: #4e5968;
+            --text-muted: #8b95a1;
+            --toss-blue: #3182f6;
+            --toss-red: #f04452;
+            --toss-green: #00d082;
+            --border: #eceef0;
+            --sans: 'Pretendard', sans-serif;
+            --mono: 'IBM Plex Mono', monospace;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing: antialiased; }
+        body { font-family: var(--sans); background: var(--bg-base); color: var(--text-primary); padding: 20px; line-height: 1.5; }
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        .header { text-align: center; margin-bottom: 40px; padding-top: 20px; }
+        .header-title { font-size: 14px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
+        .status-wrap { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
+        .pulse { width: 8px; height: 8px; background: var(--toss-green); border-radius: 50%; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 208, 130, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 208, 130, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 208, 130, 0); }
+        }
+
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+        @media(max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+        .card { background: var(--bg-card); border-radius: 28px; padding: 32px; box-shadow: 0 4px 24px rgba(0,0,0,0.04); transition: transform 0.3s ease; }
+        .card:hover { transform: translateY(-4px); }
+
+        .card-label { font-size: 18px; font-weight: 700; color: var(--text-primary); display: flex; flex-direction: column; }
+        .card-label span { font-size: 14px; color: var(--text-muted); font-weight: 500; margin-top: 4px; }
+
+        .value-row { display: flex; align-items: baseline; gap: 10px; margin: 20px 0; }
+        .card-value { font-size: 48px; font-weight: 700; color: var(--text-primary); letter-spacing: -1px; }
+        .card-change { font-size: 15px; font-weight: 600; padding: 6px 12px; border-radius: 8px; }
+        .card-change.up { color: var(--toss-red); background: #fff0f1; }
+        .card-change.down { color: var(--toss-blue); background: #e8f3ff; }
+
+        .chart-container { width: 100%; height: 100px; margin: 20px 0; }
+        canvas { width: 100% !important; height: 100% !important; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; padding-top: 24px; border-top: 1px solid var(--border); }
+        .stat-item { display: flex; flex-direction: column; gap: 4px; }
+        .stat-lbl { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+        .stat-val { font-size: 15px; color: var(--text-secondary); font-family: var(--mono); font-weight: 600; }
+
+        .source-tag { font-size: 11px; color: #ced4da; margin-top: 20px; text-align: right; width: 100%; }
+        #pe-error { color: var(--toss-red); font-size: 12px; margin-top: 10px; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="header-title">Market Insights</div>
+        <div class="status-wrap">
+            <div class="pulse"></div>
+            <span id="lastUpdated">시장 데이터를 분석하고 있습니다...</span>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-label">VIX 공포지수 <span>Volatility Index</span></div>
+            <div class="value-row">
+                <span class="card-value" id="vix-val">—</span>
+                <span class="card-change" id="vix-chg"></span>
+            </div>
+            <div class="chart-container"><canvas id="vix-spark"></canvas></div>
+            <div class="stats-grid">
+                <div class="stat-item"><span class="stat-lbl">한달 평균</span><span class="stat-val" id="vix-avg">—</span></div>
+                <div class="stat-item"><span class="stat-lbl">1년 전</span><span class="stat-val">14.15</span></div>
+                <div class="stat-item"><span class="stat-lbl">위험 수준</span><span class="stat-val" id="vix-zone">—</span></div>
+            </div>
+            <div class="source-tag">Source: Yahoo Finance</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">S&P 500 P/E <span>주가수익비율</span></div>
+            <div class="value-row">
+                <span class="card-value" id="pe-val">—</span>
+                <span class="card-change" id="pe-chg"></span>
+            </div>
+            <div class="chart-container"><canvas id="pe-spark"></canvas></div>
+            <div class="stats-grid">
+                <div class="stat-item"><span class="stat-lbl">지난 달</span><span class="stat-val" id="pe-prev-val">—</span></div>
+                <div class="stat-item"><span class="stat-lbl">역사 평균</span><span class="stat-val">16.05</span></div>
+                <div class="stat-item"><span class="stat-lbl">현재 평가</span><span class="stat-val" id="pe-eval">—</span></div>
+            </div>
+            <div id="pe-error"></div>
+            <div class="source-tag">Source: Multpl</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const $ = id => document.getElementById(id);
+
+    // 공통 차트 함수
+    function drawChart(canvasId, data, isUp) {
+        const canvas = $(canvasId);
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = canvas.offsetHeight * dpr;
+        ctx.scale(dpr, dpr);
+
+        const width = canvas.offsetWidth;
+        const height = canvas.offsetHeight;
+        const min = Math.min(...data);
+        const max = Math.max(...data);
+        const range = max - min || 1;
+        const color = isUp ? '#f04452' : '#3182f6';
+
+        const points = data.map((v, i) => ({
+            x: (i / (data.length - 1)) * width,
+            y: height - ((v - min) / range) * (height - 20) - 10
+        }));
+
+        // 그라데이션 채우기
+        const grad = ctx.createLinearGradient(0, 0, 0, height);
+        grad.addColorStop(0, color + '15');
+        grad.addColorStop(1, color + '00');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        points.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.lineTo(width, height);
+        ctx.fill();
+
+        // 선 그리기
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        points.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+    }
+
+    async function fetchVIX() {
+        try {
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/^VIX?range=1mo&interval=1d')}`);
+            const json = await res.json();
+            const data = JSON.parse(json.contents);
+            const prices = data.chart.result[0].indicators.quote[0].close.filter(v => v);
+            const current = prices[prices.length - 1];
+            const prev = prices[prices.length - 2];
+            const diff = current - prev;
+
+            $('vix-val').textContent = current.toFixed(2);
+            $('vix-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+            $('vix-chg').className = `card-change ${diff >= 0 ? 'up' : 'down'}`;
+            $('vix-avg').textContent = (prices.reduce((a, b) => a + b) / prices.length).toFixed(1);
+            $('vix-zone').textContent = current > 20 ? '공포' : '안정';
+            drawChart('vix-spark', prices, diff >= 0);
+        } catch (e) { console.error("VIX 로드 실패"); }
+    }
+
+    async function fetchPE() {
+        try {
+            const targetUrl = 'https://www.multpl.com/s-p-500-pe-ratio/table/by-month';
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`);
+            const json = await res.json();
+            const html = json.contents;
+
+            // 문자열 기반 정밀 파싱
+            const items = html.split('class="right">');
+            const values = [];
+            for(let i=1; i < items.length; i++) {
+                const rawVal = items[i].split('</td>')[0].replace(/,/g, '').trim();
+                const num = parseFloat(rawVal);
+                if(!isNaN(num)) values.push(num);
+                if(values.length >= 15) break;
+            }
+
+            if(values.length < 2) throw new Error("데이터 부족");
+
+            const current = values[0];
+            const prev = values[1];
+            const diff = current - prev;
+
+            $('pe-val').textContent = current.toFixed(2);
+            $('pe-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+            $('pe-chg').className = `card-change ${diff >= 0 ? 'up' : 'down'}`;
+            $('pe-prev-val').textContent = prev.toFixed(2);
+            $('pe-eval').textContent = current > 25 ? '고평가' : (current < 16 ? '저평가' : '적정');
+            
+            drawChart('pe-spark', [...values].reverse(), diff >= 0);
+            $('pe-error').textContent = "";
+        } catch (e) {
+            console.error("PE 로드 실패", e);
+            $('pe-error').textContent = "실시간 데이터를 가져오는 중입니다 (잠시만 대기)...";
+            // 실패 시 3초 후 재시도
+            setTimeout(fetchPE, 3000);
+        }
+    }
+
+    async function init() {
+        await Promise.all([fetchVIX(), fetchPE()]);
+        $('lastUpdated').textContent = `업데이트: ${new Date().toLocaleTimeString()}`;
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>
