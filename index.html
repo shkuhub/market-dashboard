@@ -25,15 +25,11 @@
 body { font-family: var(--sans); background: var(--bg-base); color: var(--text-primary); padding: 20px; }
 .container { max-width: 1000px; margin: 0 auto; }
 
-.key-banner { background: var(--bg-card); border-radius: 16px; padding: 20px; display: flex; align-items: center; gap: 12px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
-.key-input { flex: 1; background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 14px; outline: none; }
-.key-btn { background: var(--toss-blue); color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-.key-btn:hover { background: #1b64da; }
-
-.header { text-align: center; margin-bottom: 30px; }
-.header-title { font-size: 14px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-.status-wrap { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-top: 8px; }
-.pulse { width: 6px; height: 6px; background: var(--toss-green); border-radius: 50%; }
+/* 헤더 영역 개선 */
+.header { text-align: center; margin: 40px 0 30px; }
+.header-title { font-size: 14px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
+.status-wrap { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
+.pulse { width: 8px; height: 8px; background: var(--toss-green); border-radius: 50%; box-shadow: 0 0 8px var(--toss-green); }
 
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media(max-width:768px){ .grid { grid-template-columns:1fr; } }
@@ -61,18 +57,22 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 .stat-val { font-size: 14px; color: var(--text-secondary); font-family: var(--mono); font-weight: 600; }
 
 .source-tag { font-size: 10px; color: #ced4da; margin-top: 15px; }
+
+/* 새로고침 버튼 스타일 */
+.refresh-area { text-align: right; margin-bottom: 15px; }
+.refresh-btn { background: none; border: none; color: var(--toss-blue); font-size: 13px; font-weight: 600; cursor: pointer; padding: 5px 10px; border-radius: 6px; transition: 0.2s; }
+.refresh-btn:hover { background: #e8f3ff; }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="key-banner">
-    <input class="key-input" id="keyInput" type="password" placeholder="연결 대기 중...">
-    <button class="key-btn" onclick="renderAll()">새로고침</button>
-  </div>
-
   <div class="header">
     <div class="header-title">Market Insights</div>
-    <div class="status-wrap"><span class="pulse"></span><span id="lastUpdated">데이터 로드 중...</span></div>
+    <div class="status-wrap"><span class="pulse"></span><span id="lastUpdated">데이터를 분석하는 중...</span></div>
+  </div>
+
+  <div class="refresh-area">
+    <button class="refresh-btn" onclick="renderAll()">↺ 다시 불러오기</button>
   </div>
 
   <div class="grid">
@@ -145,7 +145,6 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 <script>
 const $ = id => document.getElementById(id);
 
-// VIX
 async function fetchVIX(){
   try {
     const url=`https://query1.finance.yahoo.com/v8/finance/chart/^VIX?range=1mo&interval=1d`;
@@ -159,7 +158,6 @@ async function fetchVIX(){
   } catch(e){ return null; }
 }
 
-// Fear & Greed
 async function fetchFG(){
   try {
     const url=`https://production.dataviz.cnn.io/index/fearandgreed/graphdata/${new Date().toISOString().split('T')[0]}`;
@@ -169,7 +167,6 @@ async function fetchFG(){
   } catch(e){ return null; }
 }
 
-// 10Y Treasury Yield
 async function fetchY10(){
   try {
     const url=`https://query1.finance.yahoo.com/v8/finance/chart/^TNX?range=1mo&interval=1d`;
@@ -183,34 +180,24 @@ async function fetchY10(){
   } catch(e){ return null; }
 }
 
-// S&P 500 P/E Ratio (Multpl HTML Parsing 방식)
 async function fetchPE(){
   try {
     const url = `https://www.multpl.com/s-p-500-pe-ratio/table/by-month`;
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`);
     const json = await res.json();
     const htmlText = json.contents;
-
-    // 정규식으로 테이블 데이터 추출
-    const regex = /<td class="left">(.+?)<\/td>\s*<td class="right">(.+?)<\/td>/g;
-    let match;
+    const items = htmlText.split('class="right">');
     const values = [];
-    while ((match = regex.exec(htmlText)) !== null) {
-      const val = parseFloat(match[2].replace(/,/g, '').trim());
-      if (!isNaN(val)) values.push(val);
+    for(let i=1; i < items.length; i++) {
+        const val = parseFloat(items[i].split('</td>')[0].replace(/,/g, '').trim());
+        if(!isNaN(val)) values.push(val);
+        if(values.length >= 15) break;
     }
-
     if (values.length < 2) return null;
-
-    return {
-      val: values[0],
-      prev: values[1],
-      history: values.slice(0, 15).reverse() // 최근 15개 데이터
-    };
-  } catch(e) { console.error("PE Parsing Fail", e); return null; }
+    return { val: values[0], prev: values[1], history: values.slice(0, 15).reverse() };
+  } catch(e) { return null; }
 }
 
-// Charting
 function drawLine(id,data,color){
   const c=$(id); const ctx=c.getContext('2d'); const dpr=window.devicePixelRatio||1;
   const w=c.parentElement.clientWidth; const h=c.parentElement.clientHeight;
@@ -245,7 +232,6 @@ function drawFGGauge(score){
   });
 }
 
-// Renderers
 function renderVIX(v){
   if(!v) return;
   const ch=v.val-v.prev;
@@ -254,7 +240,7 @@ function renderVIX(v){
   $('vix-chg').className='card-change '+(ch>=0?'up':'down');
   const avg=v.history.reduce((a,b)=>a+b,0)/v.history.length;
   $('vix-avg').textContent=avg.toFixed(1);
-  $('vix-zone').textContent=v.val>20?'위험':'안정';
+  $('vix-zone').textContent=v.val>20?'공포':'안정';
   drawLine('vix-spark',v.history, ch>=0?'#f04452':'#3182f6');
 }
 
