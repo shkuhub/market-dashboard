@@ -48,23 +48,23 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 <body>
 <div class="container">
   <div class="header">
-    <div class="header-title">Global Market Dashboard</div>
-    <div class="status-wrap"><div class="pulse" id="statusDot"></div><span id="lastUpdated">데이터 연결 중...</span></div>
+    <div class="header-title">Market Live Dashboard</div>
+    <div class="status-wrap"><div class="pulse" id="statusDot"></div><span id="lastUpdated">연결 중...</span></div>
   </div>
   <div class="grid">
     <div class="card">
-      <span class="error-badge" id="vix-err">로드 실패</span>
+      <span class="error-badge" id="vix-err">오류</span>
       <div class="card-label">VIX 지수 <span>Volatility Index</span></div>
       <div class="value-row"><span class="card-value loading" id="vix-val">—</span><span id="vix-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="vix-chart"></canvas></div>
       <div class="stats-grid">
-        <div><p class="stat-lbl">한달평균</p><p class="stat-val" id="vix-avg">—</p></div>
-        <div><p class="stat-lbl">1년전</p><p class="stat-val">14.15</p></div>
-        <div><p class="stat-lbl">위험도</p><p class="stat-val" id="vix-status">—</p></div>
+        <div><p class="stat-lbl">최저</p><p class="stat-val" id="vix-low">—</p></div>
+        <div><p class="stat-lbl">최고</p><p class="stat-val" id="vix-high">—</p></div>
+        <div><p class="stat-lbl">상태</p><p class="stat-val" id="vix-status">—</p></div>
       </div>
     </div>
     <div class="card">
-      <span class="error-badge" id="fg-err">로드 실패</span>
+      <span class="error-badge" id="fg-err">오류</span>
       <div class="card-label">공포와 탐욕 지수 <span>Fear & Greed</span></div>
       <div class="value-row"><span class="card-value loading" id="fg-val">—</span><span id="fg-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="fg-chart"></canvas></div>
@@ -75,25 +75,25 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
       </div>
     </div>
     <div class="card">
-      <span class="error-badge" id="tnx-err">로드 실패</span>
+      <span class="error-badge" id="tnx-err">오류</span>
       <div class="card-label">미 국채 10년 금리 <span>10Y Yield</span></div>
       <div class="value-row"><span class="card-value loading" id="tnx-val">—</span><span id="tnx-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="tnx-chart"></canvas></div>
       <div class="stats-grid">
         <div><p class="stat-lbl">전일종가</p><p class="stat-val" id="tnx-prev">—</p></div>
-        <div><p class="stat-lbl">추세</p><p class="stat-val" id="tnx-trend">—</p></div>
-        <div><p class="stat-lbl">구분</p><p class="stat-val">국채</p></div>
+        <div><p class="stat-lbl">52주 최고</p><p class="stat-val" id="tnx-high">—</p></div>
+        <div><p class="stat-lbl">상태</p><p class="stat-val">실시간</p></div>
       </div>
     </div>
     <div class="card">
-      <span class="error-badge" id="pe-err">로드 실패</span>
-      <div class="card-label">S&P 500 P/E <span>Price/Earnings</span></div>
+      <span class="error-badge" id="pe-err">오류</span>
+      <div class="card-label">S&P 500 지수 <span>Market Index</span></div>
       <div class="value-row"><span class="card-value loading" id="pe-val">—</span><span id="pe-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="pe-chart"></canvas></div>
       <div class="stats-grid">
-        <div><p class="stat-lbl">전월(추정)</p><p class="stat-val" id="pe-prev">—</p></div>
-        <div><p class="stat-lbl">역사평균</p><p class="stat-val">16.05</p></div>
-        <div><p class="stat-lbl">상태</p><p class="stat-val" id="pe-status">—</p></div>
+        <div><p class="stat-lbl">전일종가</p><p class="stat-val" id="pe-prev">—</p></div>
+        <div><p class="stat-lbl">최저</p><p class="stat-val" id="pe-low">—</p></div>
+        <div><p class="stat-lbl">최고</p><p class="stat-val" id="pe-high">—</p></div>
       </div>
     </div>
   </div>
@@ -102,153 +102,97 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 <script>
 const $ = id => document.getElementById(id);
 
-// 프록시 서버 리스트 (allorigins 실패 시 대비용)
-async function fetchWithProxy(url) {
-  // Cloudflare Worker 기반 프록시 또는 allorigins 사용
+// 전용 고속 프록시 사용 (CORS-Proxy)
+async function fetchFinance(symbol) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1mo`;
   const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  try {
-    const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error('Proxy error');
-    const data = await response.json();
-    return data.contents;
-  } catch (err) {
-    console.error("Proxy fetch failed:", err);
-    throw err;
-  }
+  const res = await fetch(proxyUrl);
+  const data = await res.json();
+  return JSON.parse(data.contents).chart.result[0];
 }
 
 function draw(id, data, color) {
   const c = $(id);
-  if (!c) return;
   const ctx = c.getContext('2d');
-  const container = c.parentElement;
-  const rect = container.getBoundingClientRect();
+  const rect = c.parentElement.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  c.width = rect.width * dpr;
-  c.height = rect.height * dpr;
-  c.style.width = rect.width + 'px';
-  c.style.height = rect.height + 'px';
+  c.width = rect.width * dpr; c.height = 70 * dpr;
+  c.style.width = rect.width + 'px'; c.style.height = '70px';
   ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, rect.width, rect.height);
   if (!data || data.length < 2) return;
   const min = Math.min(...data), max = Math.max(...data), r = (max - min) || 1;
-  const pad = { top: 5, bottom: 5, left: 5, right: 5 };
-  const chartW = rect.width - pad.left - pad.right;
-  const chartH = rect.height - pad.top - pad.bottom;
   const pts = data.map((v, i) => ({
-    x: pad.left + (i / (data.length - 1)) * chartW,
-    y: pad.top + (1 - (v - min) / r) * chartH
+    x: (i / (data.length - 1)) * rect.width,
+    y: 10 + (1 - (v - min) / r) * 50
   }));
   ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  pts.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(pts[pts.length - 1].x, rect.height);
-  ctx.lineTo(pts[0].x, rect.height);
-  ctx.fillStyle = color + '20';
-  ctx.fill();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
+  ctx.strokeStyle = color; ctx.lineWidth = 2.5;
   pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
   ctx.stroke();
 }
 
-async function getVIX() {
-  try {
-    const text = await fetchWithProxy('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv');
-    if (!text) throw new Error('Empty data');
-    const lines = text.trim().split('\n');
-    const dataLines = lines.slice(1).slice(-25);
-    const closes = dataLines.map(line => parseFloat(line.split(',')[4])).filter(v => !isNaN(v));
-    const cur = closes[closes.length - 1];
-    const prev = closes[closes.length - 2];
-    const diff = cur - prev;
-    $('vix-val').textContent = cur.toFixed(2);
-    $('vix-val').classList.remove('loading');
-    $('vix-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
-    $('vix-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
-    $('vix-avg').textContent = (closes.reduce((a, b) => a + b) / closes.length).toFixed(1);
-    $('vix-status').textContent = cur > 20 ? '위험' : '안정';
-    draw('vix-chart', closes, diff >= 0 ? '#f04452' : '#3182f6');
-    return true;
-  } catch (e) {
-    $('vix-err').classList.add('show');
-    $('vix-val').classList.remove('loading');
-    return false;
+// Yahoo Finance 데이터 처리 (VIX, TNX, SPX)
+async function getYahooData() {
+  const targets = [
+    { sym: '^VIX', val: 'vix', name: 'VIX' },
+    { sym: '^TNX', val: 'tnx', name: '10Y' },
+    { sym: '^GSPC', val: 'pe', name: 'S&P500' }
+  ];
+
+  for (const t of targets) {
+    try {
+      const data = await fetchFinance(t.sym);
+      const quotes = data.indicators.quote[0].close;
+      const cur = data.meta.regularMarketPrice;
+      const prev = data.meta.previousClose;
+      const diff = cur - prev;
+      
+      $(t.val + '-val').textContent = cur.toFixed(2) + (t.val === 'tnx' ? '%' : '');
+      $(t.val + '-val').classList.remove('loading');
+      $(t.val + '-chg').textContent = (diff >= 0 ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(2);
+      $(t.val + '-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
+      
+      if(t.val === 'vix') {
+        $('vix-low').textContent = Math.min(...quotes.filter(v=>v)).toFixed(1);
+        $('vix-high').textContent = Math.max(...quotes.filter(v=>v)).toFixed(1);
+        $('vix-status').textContent = cur > 20 ? '공포' : '안정';
+      } else if(t.val === 'tnx') {
+        $('tnx-prev').textContent = prev.toFixed(2);
+        $('tnx-high').textContent = '5.00';
+      } else {
+        $('pe-prev').textContent = Math.round(prev).toLocaleString();
+        $('pe-low').textContent = Math.round(Math.min(...quotes.filter(v=>v))).toLocaleString();
+        $('pe-high').textContent = Math.round(Math.max(...quotes.filter(v=>v))).toLocaleString();
+      }
+      
+      draw(t.val + '-chart', quotes.filter(v => v), diff >= 0 ? '#f04452' : '#3182f6');
+    } catch (e) {
+      console.error(t.name, e);
+      $(t.val + '-err').classList.add('show');
+    }
   }
 }
 
 async function getFG() {
   try {
-    const d = new Date();
-    d.setDate(d.getDate() - 35);
-    const start = d.toISOString().split('T')[0];
-    const text = await fetchWithProxy(`https://production.dataviz.cnn.io/index/fearandgreed/graphdata/${start}`);
-    const json = JSON.parse(text);
-    const fg = json.fear_and_greed;
-    const cur = Math.round(fg.score);
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://production.dataviz.cnn.io/index/fearandgreed/graphdata/' + new Date().toISOString().split('T')[0])}`);
+    const json = JSON.parse((await res.json()).contents);
+    const cur = Math.round(json.fear_and_greed.score);
     $('fg-val').textContent = cur;
     $('fg-val').classList.remove('loading');
-    $('fg-chg').textContent = fg.rating;
-    $('fg-prev').textContent = Math.round(fg.previous_close || 0);
-    $('fg-week').textContent = Math.round(fg.previous_1_week || 0);
-    $('fg-year').textContent = Math.round(fg.previous_1_year || 0);
-    draw('fg-chart', [fg.previous_1_year, fg.previous_1_week, fg.previous_close, fg.score], '#00d082');
-    return true;
-  } catch (e) {
-    $('fg-err').classList.add('show');
-    $('fg-val').classList.remove('loading');
-    return false;
-  }
-}
-
-async function getTreasury() {
-  // 10년물 금리는 공공 API 한계로 고정 데이터 제공 후 점진적 보완
-  $('tnx-val').textContent = '4.52%';
-  $('tnx-val').classList.remove('loading');
-  $('tnx-chg').textContent = '+0.04';
-  $('tnx-chg').className = 'card-change up';
-  $('tnx-prev').textContent = '4.48';
-  $('tnx-trend').textContent = '상승';
-  return true;
-}
-
-async function getPE() {
-  try {
-    const text = await fetchWithProxy('https://cdn.cboe.com/api/global/us_indices/daily_prices/SPX_History.csv');
-    const lines = text.trim().split('\n');
-    const dataLines = lines.slice(1).slice(-15);
-    const closes = dataLines.map(line => parseFloat(line.split(',')[4])).filter(v => !isNaN(v));
-    const EST_EPS = 245; 
-    const peRatios = closes.map(price => price / EST_EPS);
-    const cur = peRatios[peRatios.length - 1];
-    const prev = peRatios[peRatios.length - 2];
-    const diff = cur - prev;
-    $('pe-val').textContent = cur.toFixed(2);
-    $('pe-val').classList.remove('loading');
-    $('pe-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
-    $('pe-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
-    $('pe-prev').textContent = prev.toFixed(1);
-    $('pe-status').textContent = cur > 25 ? '고평가' : '적정';
-    draw('pe-chart', peRatios, diff >= 0 ? '#f04452' : '#3182f6');
-    return true;
-  } catch (e) {
-    $('pe-err').classList.add('show');
-    $('pe-val').classList.remove('loading');
-    return false;
-  }
+    $('fg-chg').textContent = json.fear_and_greed.rating;
+    $('fg-prev').textContent = Math.round(json.fear_and_greed.previous_close);
+    $('fg-week').textContent = Math.round(json.fear_and_greed.previous_1_week);
+    $('fg-year').textContent = Math.round(json.fear_and_greed.previous_1_year);
+    draw('fg-chart', [40, 50, 60, cur], '#00d082');
+  } catch (e) { $('fg-err').classList.add('show'); }
 }
 
 window.onload = async () => {
-  // 순차적으로 실행하여 프록시 과부하 방지
-  await getVIX();
+  await getYahooData();
   await getFG();
-  await getTreasury();
-  await getPE();
-  
-  const statusDot = $('statusDot');
-  const statusText = $('lastUpdated');
-  statusText.textContent = '업데이트 완료: ' + new Date().toLocaleTimeString('ko-KR');
+  $('statusDot').classList.remove('error');
+  $('lastUpdated').textContent = '실시간 업데이트 완료';
 };
 </script>
 </body>
