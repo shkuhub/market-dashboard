@@ -36,8 +36,8 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 .up { color: var(--toss-red); background: #fff0f1; }
 .down { color: var(--toss-blue); background: #e8f3ff; }
 .neutral { color: var(--text-muted); background: #f5f5f5; }
-.chart-container { width: 100%; height: 70px; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; }
-.chart-container canvas { max-width: 100%; max-height: 70px; }
+.chart-container { width: 100%; height: 70px; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+.chart-container canvas { width: 100%; height: 100%; display: block; }
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding-top: 15px; border-top: 1px solid var(--border); }
 .stat-lbl { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
 .stat-val { font-size: 13px; color: var(--text-secondary); font-family: var(--mono); font-weight: 600; }
@@ -109,27 +109,43 @@ function draw(id, data, color) {
   const c = $(id);
   if (!c) return;
   const ctx = c.getContext('2d');
-  const w = c.width = c.offsetWidth * 2;
-  const h = c.height = c.offsetHeight * 2;
-  ctx.scale(2, 2);
-  ctx.clearRect(0, 0, w/2, h/2);
+  
+  // 부모 컨테이너 크기 기준으로 canvas 크기 설정
+  const container = c.parentElement;
+  const rect = container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  
+  const displayW = rect.width;
+  const displayH = rect.height;
+  
+  c.width = displayW * dpr;
+  c.height = displayH * dpr;
+  c.style.width = displayW + 'px';
+  c.style.height = displayH + 'px';
+  
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, displayW, displayH);
   
   if (!data || data.length < 2) return;
   
   const min = Math.min(...data), max = Math.max(...data), r = (max - min) || 1;
+  const pad = { top: 5, bottom: 5, left: 5, right: 5 };
+  const chartW = displayW - pad.left - pad.right;
+  const chartH = displayH - pad.top - pad.bottom;
+  
   const pts = data.map((v, i) => ({
-    x: (i / (data.length - 1)) * (w / 2),
-    y: (h / 2) - ((v - min) / r) * ((h / 2) - 10) - 5
+    x: pad.left + (i / (data.length - 1)) * chartW,
+    y: pad.top + (1 - (v - min) / r) * chartH
   }));
   
   // Gradient fill
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   pts.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(pts[pts.length - 1].x, h / 2);
-  ctx.lineTo(pts[0].x, h / 2);
+  ctx.lineTo(pts[pts.length - 1].x, displayH - pad.bottom);
+  ctx.lineTo(pts[0].x, displayH - pad.bottom);
   ctx.closePath();
-  const grad = ctx.createLinearGradient(0, 0, 0, h / 2);
+  const grad = ctx.createLinearGradient(0, pad.top, 0, displayH - pad.bottom);
   grad.addColorStop(0, color + '40');
   grad.addColorStop(1, color + '00');
   ctx.fillStyle = grad;
@@ -137,8 +153,9 @@ function draw(id, data, color) {
   
   // Line
   ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   ctx.beginPath();
   pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
   ctx.stroke();
@@ -146,7 +163,7 @@ function draw(id, data, color) {
   // Last point
   const last = pts[pts.length - 1];
   ctx.beginPath();
-  ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
+  ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
 }
