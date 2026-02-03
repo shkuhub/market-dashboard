@@ -23,7 +23,7 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 .pulse { width: 8px; height: 8px; background: var(--toss-green); border-radius: 50%; }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 @media(max-width:768px){ .grid { grid-template-columns: 1fr; } }
-.card { background: var(--bg-card); border-radius: 24px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.card { background: var(--bg-card); border-radius: 24px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
 .card-label { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
 .card-label span { font-size: 13px; color: var(--text-muted); font-weight: 400; display: block; }
 .value-row { display: flex; align-items: baseline; gap: 8px; margin: 15px 0; min-height: 50px; }
@@ -31,11 +31,12 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 .card-change { font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
 .up { color: var(--toss-red); background: #fff0f1; }
 .down { color: var(--toss-blue); background: #e8f3ff; }
-.chart-container { width: 100%; height: 70px; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; }
-.chart-container canvas { width: 100%; height: 70px; }
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding-top: 15px; border-top: 1px solid var(--border); }
+.chart-container { width: 100%; height: 70px; margin-bottom: 15px; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding-top: 15px; border-top: 1px solid var(--border); margin-bottom: 12px; }
 .stat-lbl { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
 .stat-val { font-size: 13px; color: var(--text-secondary); font-family: var(--mono); font-weight: 600; }
+/* 출처 표기 스타일 */
+.source-tag { font-size: 9px; color: var(--text-muted); opacity: 0.6; position: absolute; bottom: 12px; }
 </style>
 </head>
 <body>
@@ -51,9 +52,10 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
       <div class="chart-container"><canvas id="vix-chart"></canvas></div>
       <div class="stats-grid">
         <div><p class="stat-lbl">한달평균</p><p class="stat-val" id="vix-avg">—</p></div>
-        <div><p class="stat-lbl">1년전</p><p class="stat-val">14.15</p></div>
+        <div><p class="stat-lbl">데이터</p><p class="stat-val">실시간</p></div>
         <div><p class="stat-lbl">위험도</p><p class="stat-val" id="vix-status">—</p></div>
       </div>
+      <div class="source-tag">Source: Yahoo Finance (^VIX)</div>
     </div>
     <div class="card">
       <div class="card-label">공포와 탐욕 지수 <span>Fear & Greed</span></div>
@@ -64,6 +66,7 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
         <div><p class="stat-lbl">1주전</p><p class="stat-val" id="fg-week">—</p></div>
         <div><p class="stat-lbl">1년전</p><p class="stat-val" id="fg-year">—</p></div>
       </div>
+      <div class="source-tag">Source: CNN Business</div>
     </div>
     <div class="card">
       <div class="card-label">미 국채 10년 금리 <span>10Y Yield</span></div>
@@ -74,16 +77,18 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
         <div><p class="stat-lbl">추세</p><p class="stat-val" id="tnx-trend">—</p></div>
         <div><p class="stat-lbl">구분</p><p class="stat-val">국채</p></div>
       </div>
+      <div class="source-tag">Source: Yahoo Finance (^TNX)</div>
     </div>
     <div class="card">
       <div class="card-label">S&P 500 P/E <span>Price/Earnings</span></div>
       <div class="value-row"><span class="card-value" id="pe-val">—</span><span id="pe-chg" class="card-change"></span></div>
       <div class="chart-container"><canvas id="pe-chart"></canvas></div>
       <div class="stats-grid">
-        <div><p class="stat-lbl">전월(추정)</p><p class="stat-val" id="pe-prev">—</p></div>
+        <div><p class="stat-lbl">기준EPS</p><p class="stat-val">$241.5</p></div>
         <div><p class="stat-lbl">역사평균</p><p class="stat-val">16.05</p></div>
         <div><p class="stat-lbl">상태</p><p class="stat-val" id="pe-status">—</p></div>
       </div>
+      <div class="source-tag">Source: S&P Global / Yahoo (Est.)</div>
     </div>
   </div>
 </div>
@@ -91,31 +96,21 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 <script>
 const $ = id => document.getElementById(id);
 
-// 차트 그리기 함수 보강
 function draw(id, data, color) {
   const c=$(id); if(!c) return;
   const ctx=c.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
-  const w = c.clientWidth;
-  const h = c.clientHeight;
-  c.width = w * dpr;
-  c.height = h * dpr;
+  const w = c.clientWidth; const h = c.clientHeight;
+  c.width = w * dpr; c.height = h * dpr;
   ctx.scale(dpr, dpr);
-  
   const min=Math.min(...data), max=Math.max(...data), r=(max-min)||1;
-  const pts=data.map((v,i)=>({
-    x: (i/(data.length-1)) * w,
-    y: (h-10) - ((v-min)/r)*(h-20)
-  }));
-
+  const pts=data.map((v,i)=>({x:(i/(data.length-1))*w, y:(h-5)-((v-min)/r)*(h-10)}));
   ctx.clearRect(0,0,w,h);
   ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineJoin='round';
   ctx.beginPath();
-  pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); 
-  ctx.stroke();
+  pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
 }
 
-// Yahoo Finance API 통합 처리
 async function getYahoo(ticker, valId, chgId, avgId, chartId) {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=1mo&interval=1d`;
@@ -123,22 +118,16 @@ async function getYahoo(ticker, valId, chgId, avgId, chartId) {
     const json = await res.json();
     const d = JSON.parse(json.contents).chart.result[0];
     const p = d.indicators.quote[0].close.filter(v => v !== null);
-    
     const cur = d.meta.regularMarketPrice;
     const prev = d.meta.previousClose;
     const diff = cur - prev;
-
     $(valId).textContent = cur.toFixed(ticker==='^TNX'?3:2) + (ticker==='^TNX'?'%':'');
     $(chgId).textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
     $(chgId).className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
-    
     if(avgId) $(avgId).textContent = (p.reduce((a,b)=>a+b)/p.length).toFixed(1);
     draw(chartId, p, diff >= 0 ? '#f04452' : '#3182f6');
-    return {cur, prev};
-  } catch(e) {
-    console.error(ticker + " load failed");
-    return null;
-  }
+    return {cur, prev, p};
+  } catch(e) { return null; }
 }
 
 async function getFG() {
@@ -152,38 +141,35 @@ async function getFG() {
     $('fg-year').textContent = Math.round(d.previous_1_year);
     $('fg-chg').textContent = d.rating;
     draw('fg-chart', [d.previous_1_year, d.previous_1_week, d.previous_close, d.score], '#00d082');
-  } catch(e) { console.error("F&G load failed"); }
+  } catch(e) {}
 }
 
 async function getPE() {
   try {
-    // multpl 스크래핑이 불안정하므로 S&P500 지수 대비 추정치로 보완
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/^GSPC?range=1mo&interval=1d')}`);
+    // S&P 500 실시간 지수(^GSPC)를 가져와서 최신 예상 EPS($241.52)로 나눕니다.
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/^GSPC?range=1mo&interval=1d`;
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     const json = await res.json();
     const d = JSON.parse(json.contents).chart.result[0];
-    const curPrice = d.meta.regularMarketPrice;
+    const latestPrice = d.meta.regularMarketPrice;
     const prevPrice = d.meta.previousClose;
     
-    // 현재 S&P 500 추정 EPS 약 195~200 기준 (실제로는 동적 연동이 좋으나 웹상에선 이 방식이 안정적)
-    const curPE = curPrice / 198; 
-    const prevPE = prevPrice / 198;
-    const diff = curPE - prevPE;
+    // 2024-2025 S&P 500 예상 EPS 평균치 반영
+    const EPS = 241.52; 
+    const curPE = latestPrice / EPS;
+    const diff = (latestPrice - prevPrice) / EPS;
 
     $('pe-val').textContent = curPE.toFixed(2);
     $('pe-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
     $('pe-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
-    $('pe-prev').textContent = prevPE.toFixed(1);
-    $('pe-status').textContent = curPE > 25 ? '고평가' : '적정';
+    $('pe-status').textContent = curPE > 28 ? '고평가' : (curPE < 20 ? '저평가' : '적정');
     
-    const prices = d.indicators.quote[0].close.filter(v=>v).map(p => p/198);
-    draw('pe-chart', prices, diff >= 0 ? '#f04452' : '#3182f6');
-  } catch(e) {
-    $('pe-val').textContent = "28.45"; // 실패시 최근 평균값 출력
-  }
+    const peHistory = d.indicators.quote[0].close.filter(v=>v).map(p => p/EPS);
+    draw('pe-chart', peHistory, diff >= 0 ? '#f04452' : '#3182f6');
+  } catch(e) { $('pe-val').textContent = "연결오류"; }
 }
 
 window.onload = async () => {
-  // 병렬 실행으로 로딩 속도 최적화
   Promise.all([
     getYahoo('^VIX', 'vix-val', 'vix-chg', 'vix-avg', 'vix-chart').then(v => {
       if(v) $('vix-status').textContent = v.cur > 20 ? '위험' : '안정';
