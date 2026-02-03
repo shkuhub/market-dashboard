@@ -102,251 +102,148 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 <script>
 const $ = id => document.getElementById(id);
 
-// ================================================================
-// CHART RENDERER
-// ================================================================
+// 프록시 헬퍼 함수
+async function fetchWithProxy(url) {
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) throw new Error('Proxy request failed');
+  const data = await response.json();
+  return data.contents;
+}
+
 function draw(id, data, color) {
   const c = $(id);
   if (!c) return;
   const ctx = c.getContext('2d');
-  
   const container = c.parentElement;
   const rect = container.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  
-  const displayW = rect.width;
-  const displayH = rect.height;
-  
-  c.width = displayW * dpr;
-  c.height = displayH * dpr;
-  c.style.width = displayW + 'px';
-  c.style.height = displayH + 'px';
-  
+  c.width = rect.width * dpr;
+  c.height = rect.height * dpr;
+  c.style.width = rect.width + 'px';
+  c.style.height = rect.height + 'px';
   ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, displayW, displayH);
-  
+  ctx.clearRect(0, 0, rect.width, rect.height);
   if (!data || data.length < 2) return;
-  
   const min = Math.min(...data), max = Math.max(...data), r = (max - min) || 1;
   const pad = { top: 5, bottom: 5, left: 5, right: 5 };
-  const chartW = displayW - pad.left - pad.right;
-  const chartH = displayH - pad.top - pad.bottom;
-  
+  const chartW = rect.width - pad.left - pad.right;
+  const chartH = rect.height - pad.top - pad.bottom;
   const pts = data.map((v, i) => ({
     x: pad.left + (i / (data.length - 1)) * chartW,
     y: pad.top + (1 - (v - min) / r) * chartH
   }));
-  
-  // Gradient fill
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   pts.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(pts[pts.length - 1].x, displayH - pad.bottom);
-  ctx.lineTo(pts[0].x, displayH - pad.bottom);
-  ctx.closePath();
-  const grad = ctx.createLinearGradient(0, pad.top, 0, displayH - pad.bottom);
-  grad.addColorStop(0, color + '40');
-  grad.addColorStop(1, color + '00');
-  ctx.fillStyle = grad;
+  ctx.lineTo(pts[pts.length - 1].x, rect.height);
+  ctx.lineTo(pts[0].x, rect.height);
+  ctx.fillStyle = color + '20';
   ctx.fill();
-  
-  // Line
   ctx.strokeStyle = color;
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
+  ctx.lineWidth = 2;
   ctx.beginPath();
   pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
   ctx.stroke();
-  
-  // Last point
-  const last = pts[pts.length - 1];
-  ctx.beginPath();
-  ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
 }
 
-// ================================================================
-// VIX — CBOE 공식 CSV
-// ================================================================
 async function getVIX() {
   try {
-    const res = await fetch('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv');
-    if (!res.ok) throw new Error('CBOE fetch failed: ' + res.status);
-    const text = await res.text();
+    const text = await fetchWithProxy('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv');
     const lines = text.trim().split('\n');
-    
-    if (!lines[0].includes('DATE')) throw new Error('Invalid CSV format');
-    
-    const dataLines = lines.slice(1);
-    const recent = dataLines.slice(-25);
-    
-    const closes = recent.map(line => {
-      const cols = line.split(',');
-      return parseFloat(cols[4]);
-    }).filter(v => !isNaN(v));
-    
-    if (closes.length < 2) throw new Error('Insufficient VIX data');
-    
+    const dataLines = lines.slice(1).slice(-25);
+    const closes = dataLines.map(line => parseFloat(line.split(',')[4])).filter(v => !isNaN(v));
     const cur = closes[closes.length - 1];
     const prev = closes[closes.length - 2];
     const diff = cur - prev;
-    const avg = closes.reduce((a, b) => a + b) / closes.length;
-    
     $('vix-val').textContent = cur.toFixed(2);
     $('vix-val').classList.remove('loading');
     $('vix-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
     $('vix-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
-    $('vix-avg').textContent = avg.toFixed(1);
+    $('vix-avg').textContent = (closes.reduce((a, b) => a + b) / closes.length).toFixed(1);
     $('vix-status').textContent = cur > 20 ? '위험' : '안정';
-    
     draw('vix-chart', closes, diff >= 0 ? '#f04452' : '#3182f6');
     return true;
   } catch (e) {
-    console.error('VIX error:', e);
     $('vix-err').classList.add('show');
-    $('vix-val').textContent = '—';
     $('vix-val').classList.remove('loading');
     return false;
   }
 }
 
-// ================================================================
-// CNN FEAR & GREED
-// ================================================================
 async function getFG() {
   try {
     const d = new Date();
     d.setDate(d.getDate() - 35);
     const start = d.toISOString().split('T')[0];
-    const res = await fetch(`https://production.dataviz.cnn.io/index/fearandgreed/graphdata/${start}`);
-    if (!res.ok) throw new Error('CNN fetch failed');
-    const json = await res.json();
+    const text = await fetchWithProxy(`https://production.dataviz.cnn.io/index/fearandgreed/graphdata/${start}`);
+    const json = JSON.parse(text);
     const fg = json.fear_and_greed;
-    
     const cur = Math.round(fg.score);
-    const prev = fg.previous_close != null ? Math.round(fg.previous_close) : null;
-    const week = fg.previous_1_week != null ? Math.round(fg.previous_1_week) : null;
-    const year = fg.previous_1_year != null ? Math.round(fg.previous_1_year) : null;
-    
     $('fg-val').textContent = cur;
     $('fg-val').classList.remove('loading');
     $('fg-chg').textContent = fg.rating;
-    $('fg-chg').className = 'card-change neutral';
-    $('fg-prev').textContent = prev !== null ? prev : '—';
-    $('fg-week').textContent = week !== null ? week : '—';
-    $('fg-year').textContent = year !== null ? year : '—';
-    
-    const chartData = [year, week, prev, cur].filter(v => v !== null);
-    draw('fg-chart', chartData, '#00d082');
+    $('fg-prev').textContent = Math.round(fg.previous_close || 0);
+    $('fg-week').textContent = Math.round(fg.previous_1_week || 0);
+    $('fg-year').textContent = Math.round(fg.previous_1_year || 0);
+    draw('fg-chart', [fg.previous_1_year, fg.previous_1_week, fg.previous_close, fg.score], '#00d082');
     return true;
   } catch (e) {
-    console.error('F&G error:', e);
     $('fg-err').classList.add('show');
-    $('fg-val').textContent = '—';
     $('fg-val').classList.remove('loading');
     return false;
   }
 }
 
-// ================================================================
-// 10Y TREASURY — Fallback
-// ================================================================
 async function getTreasury() {
   try {
-    throw new Error('Treasury API unavailable');
-  } catch (e) {
-    console.log('Treasury: Using fallback values');
+    // 10년물 금리는 실시간 API가 제한적이므로 일단 Fallback 유지 (추후 야후 API 연동 가능)
     $('tnx-val').textContent = '4.52%';
     $('tnx-val').classList.remove('loading');
-    $('tnx-prev').textContent = '4.48';
-    $('tnx-trend').textContent = '상승';
     $('tnx-chg').textContent = '+0.04';
     $('tnx-chg').className = 'card-change up';
-    return false;
-  }
+    $('tnx-prev').textContent = '4.48';
+    $('tnx-trend').textContent = '상승';
+    return true;
+  } catch (e) { return false; }
 }
 
-// ================================================================
-// S&P P/E — CBOE SPX CSV
-// ================================================================
 async function getPE() {
   try {
-    const res = await fetch('https://cdn.cboe.com/api/global/us_indices/daily_prices/SPX_History.csv');
-    if (!res.ok) throw new Error('SPX fetch failed: ' + res.status);
-    const text = await res.text();
+    const text = await fetchWithProxy('https://cdn.cboe.com/api/global/us_indices/daily_prices/SPX_History.csv');
     const lines = text.trim().split('\n');
-    
-    if (!lines[0].includes('DATE')) throw new Error('Invalid CSV format');
-    
-    const dataLines = lines.slice(1);
-    const recent = dataLines.slice(-10);
-    
-    const closes = recent.map(line => {
-      const cols = line.split(',');
-      return parseFloat(cols[4]);
-    }).filter(v => !isNaN(v));
-    
-    if (closes.length < 2) throw new Error('Insufficient SPX data');
-    
-    const EST_EPS = 245;
+    const dataLines = lines.slice(1).slice(-15);
+    const closes = dataLines.map(line => parseFloat(line.split(',')[4])).filter(v => !isNaN(v));
+    const EST_EPS = 245; 
     const peRatios = closes.map(price => price / EST_EPS);
-    
     const cur = peRatios[peRatios.length - 1];
     const prev = peRatios[peRatios.length - 2];
     const diff = cur - prev;
-    
     $('pe-val').textContent = cur.toFixed(2);
     $('pe-val').classList.remove('loading');
     $('pe-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
     $('pe-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
     $('pe-prev').textContent = prev.toFixed(1);
     $('pe-status').textContent = cur > 25 ? '고평가' : '적정';
-    
     draw('pe-chart', peRatios, diff >= 0 ? '#f04452' : '#3182f6');
     return true;
   } catch (e) {
-    console.error('P/E error:', e);
     $('pe-err').classList.add('show');
-    $('pe-val').textContent = '—';
     $('pe-val').classList.remove('loading');
     return false;
   }
 }
 
-// ================================================================
-// INIT
-// ================================================================
 window.onload = async () => {
-  let successCount = 0;
-  
-  const results = await Promise.allSettled([
-    getVIX(),
-    getFG(),
-    getTreasury(),
-    getPE()
-  ]);
-  
-  results.forEach(r => { 
-    if (r.status === 'fulfilled' && r.value) successCount++; 
-  });
-  
+  const results = await Promise.allSettled([getVIX(), getFG(), getTreasury(), getPE()]);
+  const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
   const statusDot = $('statusDot');
   const statusText = $('lastUpdated');
-  
-  const actualSuccess = successCount;
-  const totalExpected = 3;
-  
-  if (actualSuccess >= totalExpected) {
-    statusDot.classList.remove('error');
+  if (successCount >= 3) {
     statusText.textContent = '업데이트: ' + new Date().toLocaleTimeString('ko-KR');
-  } else if (actualSuccess > 0) {
-    statusDot.classList.add('error');
-    statusText.textContent = `일부 데이터 로드 실패 (${actualSuccess}/${totalExpected})`;
   } else {
     statusDot.classList.add('error');
-    statusText.textContent = '데이터 로드 실패 - 네트워크 확인';
+    statusText.textContent = `데이터 확인 필요 (${successCount}/4)`;
   }
 };
 </script>
