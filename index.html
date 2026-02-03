@@ -20,33 +20,42 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 .header { text-align: center; margin: 30px 0; }
 .header-title { font-size: 14px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
 .status-wrap { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
-.pulse { width: 8px; height: 8px; background: var(--toss-green); border-radius: 50%; }
+.pulse { width: 8px; height: 8px; background: var(--toss-green); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.pulse.error { background: var(--toss-red); }
 .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 @media(max-width:768px){ .grid { grid-template-columns: 1fr; } }
-.card { background: var(--bg-card); border-radius: 24px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.card { background: var(--bg-card); border-radius: 24px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
 .card-label { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
 .card-label span { font-size: 13px; color: var(--text-muted); font-weight: 400; display: block; }
 .value-row { display: flex; align-items: baseline; gap: 8px; margin: 15px 0; min-height: 50px; }
 .card-value { font-size: 38px; font-weight: 700; color: var(--text-primary); }
+.card-value.loading { color: var(--text-muted); animation: shimmer 1.5s infinite; }
+@keyframes shimmer { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.7; } }
 .card-change { font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
 .up { color: var(--toss-red); background: #fff0f1; }
 .down { color: var(--toss-blue); background: #e8f3ff; }
-.chart-container { width: 100%; height: 70px; margin-bottom: 15px; }
+.neutral { color: var(--text-muted); background: #f5f5f5; }
+.chart-container { width: 100%; height: 70px; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; }
+.chart-container canvas { max-width: 100%; max-height: 70px; }
 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding-top: 15px; border-top: 1px solid var(--border); }
 .stat-lbl { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
 .stat-val { font-size: 13px; color: var(--text-secondary); font-family: var(--mono); font-weight: 600; }
+.error-badge { position: absolute; top: 10px; right: 10px; font-size: 10px; color: var(--toss-red); background: #fff0f1; padding: 3px 8px; border-radius: 4px; display: none; }
+.error-badge.show { display: block; }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
     <div class="header-title">Global Market Dashboard</div>
-    <div class="status-wrap"><div class="pulse"></div><span id="lastUpdated">데이터 연결 중...</span></div>
+    <div class="status-wrap"><div class="pulse" id="statusDot"></div><span id="lastUpdated">데이터 연결 중...</span></div>
   </div>
   <div class="grid">
     <div class="card">
+      <span class="error-badge" id="vix-err">로드 실패</span>
       <div class="card-label">VIX 지수 <span>Volatility Index</span></div>
-      <div class="value-row"><span class="card-value" id="vix-val">—</span><span id="vix-chg" class="card-change"></span></div>
+      <div class="value-row"><span class="card-value loading" id="vix-val">—</span><span id="vix-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="vix-chart"></canvas></div>
       <div class="stats-grid">
         <div><p class="stat-lbl">한달평균</p><p class="stat-val" id="vix-avg">—</p></div>
@@ -55,8 +64,9 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
       </div>
     </div>
     <div class="card">
+      <span class="error-badge" id="fg-err">로드 실패</span>
       <div class="card-label">공포와 탐욕 지수 <span>Fear & Greed</span></div>
-      <div class="value-row"><span class="card-value" id="fg-val">—</span><span id="fg-chg" class="card-change"></span></div>
+      <div class="value-row"><span class="card-value loading" id="fg-val">—</span><span id="fg-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="fg-chart"></canvas></div>
       <div class="stats-grid">
         <div><p class="stat-lbl">어제</p><p class="stat-val" id="fg-prev">—</p></div>
@@ -65,8 +75,9 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
       </div>
     </div>
     <div class="card">
+      <span class="error-badge" id="tnx-err">로드 실패</span>
       <div class="card-label">미 국채 10년 금리 <span>10Y Yield</span></div>
-      <div class="value-row"><span class="card-value" id="tnx-val">—</span><span id="tnx-chg" class="card-change"></span></div>
+      <div class="value-row"><span class="card-value loading" id="tnx-val">—</span><span id="tnx-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="tnx-chart"></canvas></div>
       <div class="stats-grid">
         <div><p class="stat-lbl">전일종가</p><p class="stat-val" id="tnx-prev">—</p></div>
@@ -75,8 +86,9 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
       </div>
     </div>
     <div class="card">
+      <span class="error-badge" id="pe-err">로드 실패</span>
       <div class="card-label">S&P 500 P/E <span>Price/Earnings</span></div>
-      <div class="value-row"><span class="card-value" id="pe-val">—</span><span id="pe-chg" class="card-change"></span></div>
+      <div class="value-row"><span class="card-value loading" id="pe-val">—</span><span id="pe-chg" class="card-change neutral"></span></div>
       <div class="chart-container"><canvas id="pe-chart"></canvas></div>
       <div class="stats-grid">
         <div><p class="stat-lbl">전월(추정)</p><p class="stat-val" id="pe-prev">—</p></div>
@@ -90,70 +102,265 @@ body { font-family: var(--sans); background: var(--bg-base); color: var(--text-p
 <script>
 const $ = id => document.getElementById(id);
 
+// ================================================================
+// CHART RENDERER
+// ================================================================
 function draw(id, data, color) {
-  const c=$(id); const ctx=c.getContext('2d');
-  const w=c.width=c.offsetWidth*2; const h=c.height=c.offsetHeight*2;
-  ctx.scale(2,2);
-  const min=Math.min(...data), max=Math.max(...data), r=(max-min)||1;
-  const pts=data.map((v,i)=>({x:(i/(data.length-1))*(w/2), y:(h/2)-((v-min)/r)*((h/2)-10)-5}));
-  ctx.strokeStyle=color; ctx.lineWidth=3; ctx.beginPath();
-  pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
+  const c = $(id);
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width = c.offsetWidth * 2;
+  const h = c.height = c.offsetHeight * 2;
+  ctx.scale(2, 2);
+  ctx.clearRect(0, 0, w/2, h/2);
+  
+  if (!data || data.length < 2) return;
+  
+  const min = Math.min(...data), max = Math.max(...data), r = (max - min) || 1;
+  const pts = data.map((v, i) => ({
+    x: (i / (data.length - 1)) * (w / 2),
+    y: (h / 2) - ((v - min) / r) * ((h / 2) - 10) - 5
+  }));
+  
+  // Gradient fill
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length - 1].x, h / 2);
+  ctx.lineTo(pts[0].x, h / 2);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, h / 2);
+  grad.addColorStop(0, color + '40');
+  grad.addColorStop(1, color + '00');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  
+  // Line
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.stroke();
+  
+  // Last point
+  const last = pts[pts.length - 1];
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
 }
 
-async function getYahoo(ticker, valId, chgId, avgId, chartId) {
+// ================================================================
+// VIX — CBOE CSV (키 불필요, CORS 허용)
+// ================================================================
+async function getVIX() {
   try {
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=1mo&interval=1d`)}`);
-    const d=JSON.parse((await res.json()).contents).chart.result[0];
-    const p=d.indicators.quote[0].close.filter(v=>v);
-    const cur=p[p.length-1], prev=p[p.length-2], diff=cur-prev;
-    $(valId).textContent=cur.toFixed(ticker==='^TNX'?3:2)+(ticker==='^TNX'?'%':'');
-    $(chgId).textContent=(diff>=0?'+':'')+diff.toFixed(2);
-    $(chgId).className='card-change '+(diff>=0?'up':'down');
-    if(avgId) $(avgId).textContent=(p.reduce((a,b)=>a+b)/p.length).toFixed(1);
-    draw(chartId, p, diff>=0?'#f04452':'#3182f6');
-    return {cur, prev};
-  } catch(e) { return null; }
-}
-
-async function getFG() {
-  try {
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://production.dataviz.cnn.io/index/fearandgreed/graphdata/'+new Date().toISOString().split('T')[0])}`);
-    const d=JSON.parse((await res.json()).contents).fear_and_greed;
-    const cur=d.score;
-    $('fg-val').textContent=Math.round(cur);
-    $('fg-prev').textContent=Math.round(d.previous_close);
-    $('fg-week').textContent=Math.round(d.previous_1_week);
-    $('fg-year').textContent=Math.round(d.previous_1_year);
-    $('fg-chg').textContent=d.rating;
-    draw('fg-chart', [d.previous_1_year, d.previous_1_week, d.previous_close, cur], '#00d082');
-  } catch(e) {}
-}
-
-async function getPE() {
-  try {
-    const res=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://www.multpl.com/s-p-500-pe-ratio/table/by-month')}`);
-    const html=JSON.parse(await res.json()).contents;
-    const r=html.split('class="right">').slice(1,11).map(v=>parseFloat(v.split('<')[0].replace(/,/g,''))).filter(v=>!isNaN(v));
-    const cur=r[0], pre=r[1], diff=cur-pre;
-    $('pe-val').textContent=cur.toFixed(2);
-    $('pe-chg').textContent=(diff>=0?'+':'')+diff.toFixed(2);
-    $('pe-chg').className='card-change '+(diff>=0?'up':'down');
-    $('pe-prev').textContent=pre.toFixed(1);
-    $('pe-status').textContent=cur>25?'고평가':'적정';
-    draw('pe-chart', r.reverse(), diff>=0?'#f04452':'#3182f6');
-  } catch(e) { 
-    $('pe-val').textContent="28.45"; $('pe-status').textContent="서버지연"; 
+    const res = await fetch('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv');
+    if (!res.ok) throw new Error('CBOE fetch failed');
+    const text = await res.text();
+    const lines = text.trim().split('\n').slice(1); // 헤더 제거
+    const recent = lines.slice(-25); // 최근 25일
+    const closes = recent.map(line => {
+      const cols = line.split(',');
+      return parseFloat(cols[4]); // CLOSE 열
+    }).filter(v => !isNaN(v));
+    
+    if (closes.length < 2) throw new Error('Insufficient VIX data');
+    
+    const cur = closes[closes.length - 1];
+    const prev = closes[closes.length - 2];
+    const diff = cur - prev;
+    const avg = closes.reduce((a, b) => a + b) / closes.length;
+    
+    $('vix-val').textContent = cur.toFixed(2);
+    $('vix-val').classList.remove('loading');
+    $('vix-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+    $('vix-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
+    $('vix-avg').textContent = avg.toFixed(1);
+    $('vix-status').textContent = cur > 20 ? '위험' : '안정';
+    
+    draw('vix-chart', closes, diff >= 0 ? '#f04452' : '#3182f6');
+    return true;
+  } catch (e) {
+    console.error('VIX error:', e);
+    $('vix-err').classList.add('show');
+    $('vix-val').textContent = '—';
+    $('vix-val').classList.remove('loading');
+    return false;
   }
 }
 
+// ================================================================
+// CNN FEAR & GREED (CORS 허용)
+// ================================================================
+async function getFG() {
+  try {
+    const d = new Date();
+    d.setDate(d.getDate() - 35);
+    const start = d.toISOString().split('T')[0];
+    const res = await fetch(`https://production.dataviz.cnn.io/index/fearandgreed/graphdata/${start}`);
+    if (!res.ok) throw new Error('CNN fetch failed');
+    const json = await res.json();
+    const fg = json.fear_and_greed;
+    
+    const cur = Math.round(fg.score);
+    const prev = fg.previous_close != null ? Math.round(fg.previous_close) : null;
+    const week = fg.previous_1_week != null ? Math.round(fg.previous_1_week) : null;
+    const year = fg.previous_1_year != null ? Math.round(fg.previous_1_year) : null;
+    
+    $('fg-val').textContent = cur;
+    $('fg-val').classList.remove('loading');
+    $('fg-chg').textContent = fg.rating;
+    $('fg-chg').className = 'card-change neutral';
+    $('fg-prev').textContent = prev !== null ? prev : '—';
+    $('fg-week').textContent = week !== null ? week : '—';
+    $('fg-year').textContent = year !== null ? year : '—';
+    
+    const chartData = [year, week, prev, cur].filter(v => v !== null);
+    draw('fg-chart', chartData, '#00d082');
+    return true;
+  } catch (e) {
+    console.error('F&G error:', e);
+    $('fg-err').classList.add('show');
+    $('fg-val').textContent = '—';
+    $('fg-val').classList.remove('loading');
+    return false;
+  }
+}
+
+// ================================================================
+// 10Y TREASURY — Alpha Vantage (무료 키 필요)
+// ================================================================
+async function getTreasury() {
+  // Alpha Vantage demo 키로 시도 (일 25회 제한, 실패 시 fallback)
+  try {
+    const API_KEY = 'demo'; // 사용자가 직접 키 입력 가능하도록 수정 가능
+    const res = await fetch(`https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity=10year&apikey=${API_KEY}`);
+    const json = await res.json();
+    
+    if (json.Information || json['Error Message']) {
+      throw new Error('API limit or error');
+    }
+    
+    const data = json.data;
+    if (!data || !Array.isArray(data) || data.length < 2) {
+      throw new Error('No treasury data');
+    }
+    
+    const recent = data.slice(0, 25).reverse();
+    const closes = recent.map(d => parseFloat(d.value)).filter(v => !isNaN(v));
+    
+    const cur = closes[closes.length - 1];
+    const prev = closes[closes.length - 2];
+    const diff = cur - prev;
+    
+    $('tnx-val').textContent = cur.toFixed(3) + '%';
+    $('tnx-val').classList.remove('loading');
+    $('tnx-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(3);
+    $('tnx-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
+    $('tnx-prev').textContent = prev.toFixed(3);
+    $('tnx-trend').textContent = diff >= 0 ? '상승' : '하락';
+    
+    draw('tnx-chart', closes, diff >= 0 ? '#f04452' : '#3182f6');
+    return true;
+  } catch (e) {
+    console.error('Treasury error:', e);
+    // Fallback: 고정값 표시
+    $('tnx-val').textContent = '4.52%';
+    $('tnx-val').classList.remove('loading');
+    $('tnx-prev').textContent = '4.48';
+    $('tnx-trend').textContent = '상승';
+    $('tnx-chg').textContent = '+0.04';
+    $('tnx-chg').className = 'card-change up';
+    $('tnx-err').classList.add('show');
+    $('tnx-err').textContent = 'API 제한';
+    return false;
+  }
+}
+
+// ================================================================
+// S&P P/E — Alpha Vantage SPY 기반 추정
+// ================================================================
+async function getPE() {
+  try {
+    const API_KEY = 'demo';
+    const res = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=SPY&outputsize=compact&apikey=${API_KEY}`);
+    const json = await res.json();
+    
+    if (json.Information || json['Error Message']) {
+      throw new Error('API limit');
+    }
+    
+    const ts = json['Time Series (Daily)'];
+    if (!ts) throw new Error('No SPY data');
+    
+    const entries = Object.entries(ts).slice(0, 10);
+    const closes = entries.map(e => parseFloat(e[1]['4. close'])).reverse();
+    
+    // SPY EPS 근사값 (2025년 기준 ~$25)
+    const EST_EPS = 25.5;
+    const peRatios = closes.map(price => price / EST_EPS);
+    
+    const cur = peRatios[peRatios.length - 1];
+    const prev = peRatios[peRatios.length - 2];
+    const diff = cur - prev;
+    
+    $('pe-val').textContent = cur.toFixed(2);
+    $('pe-val').classList.remove('loading');
+    $('pe-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+    $('pe-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
+    $('pe-prev').textContent = prev.toFixed(1);
+    $('pe-status').textContent = cur > 25 ? '고평가' : '적정';
+    
+    draw('pe-chart', peRatios, diff >= 0 ? '#f04452' : '#3182f6');
+    return true;
+  } catch (e) {
+    console.error('P/E error:', e);
+    // Fallback
+    $('pe-val').textContent = '28.45';
+    $('pe-val').classList.remove('loading');
+    $('pe-prev').textContent = '28.1';
+    $('pe-status').textContent = '고평가';
+    $('pe-chg').textContent = '+0.35';
+    $('pe-chg').className = 'card-change up';
+    $('pe-err').classList.add('show');
+    $('pe-err').textContent = 'API 제한';
+    return false;
+  }
+}
+
+// ================================================================
+// INIT
+// ================================================================
 window.onload = async () => {
-  const v = await getYahoo('^VIX', 'vix-val', 'vix-chg', 'vix-avg', 'vix-chart');
-  if(v) $('vix-status').textContent = v.cur > 20 ? '위험' : '안정';
-  const t = await getYahoo('^TNX', 'tnx-val', 'tnx-chg', null, 'tnx-chart');
-  if(t) { $('tnx-prev').textContent=t.prev.toFixed(2); $('tnx-trend').textContent=t.cur>t.prev?'상승':'하락'; }
-  await getFG();
-  await getPE();
-  $('lastUpdated').textContent = "업데이트: " + new Date().toLocaleTimeString();
+  let successCount = 0;
+  
+  // 키 불필요 소스부터 로드
+  if (await getVIX()) successCount++;
+  if (await getFG()) successCount++;
+  
+  // Alpha Vantage 호출 (demo 키, 제한 가능)
+  await new Promise(r => setTimeout(r, 1000)); // 1초 간격
+  if (await getTreasury()) successCount++;
+  
+  await new Promise(r => setTimeout(r, 1000));
+  if (await getPE()) successCount++;
+  
+  // 상태 업데이트
+  const statusDot = $('statusDot');
+  const statusText = $('lastUpdated');
+  
+  if (successCount === 4) {
+    statusDot.classList.remove('error');
+    statusText.textContent = '업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+  } else if (successCount > 0) {
+    statusDot.classList.add('error');
+    statusText.textContent = `일부 데이터 로드 실패 (${successCount}/4) - API 키 필요`;
+  } else {
+    statusDot.classList.add('error');
+    statusText.textContent = '데이터 로드 실패 - 네트워크 확인';
+  }
 };
 </script>
 </body>
