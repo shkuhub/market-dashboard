@@ -174,13 +174,14 @@ function draw(id, data, color) {
 async function getVIX() {
   try {
     const res = await fetch('https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv');
-    if (!res.ok) throw new Error('CBOE fetch failed');
+    if (!res.ok) throw new Error('CBOE fetch failed: ' + res.status);
     const text = await res.text();
     const lines = text.trim().split('\n').slice(1); // 헤더 제거
     const recent = lines.slice(-25); // 최근 25일
+    
     const closes = recent.map(line => {
       const cols = line.split(',');
-      return parseFloat(cols[4]); // CLOSE 열
+      return parseFloat(cols[1]); // VIX 열 (두 번째 열)
     }).filter(v => !isNaN(v));
     
     if (closes.length < 2) throw new Error('Insufficient VIX data');
@@ -202,8 +203,8 @@ async function getVIX() {
   } catch (e) {
     console.error('VIX error:', e);
     $('vix-err').classList.add('show');
-    $('vix-val').textContent = '—';
     $('vix-val').classList.remove('loading');
+    // 더미 데이터 제거 — 빈 상태로
     return false;
   }
 }
@@ -286,15 +287,9 @@ async function getTreasury() {
     return true;
   } catch (e) {
     console.error('Treasury error:', e);
-    // Fallback to CBOE interest rate page scraping or static value
-    $('tnx-val').textContent = '4.52%';
-    $('tnx-val').classList.remove('loading');
-    $('tnx-prev').textContent = '4.48';
-    $('tnx-trend').textContent = '—';
-    $('tnx-chg').textContent = '—';
-    $('tnx-chg').className = 'card-change neutral';
     $('tnx-err').classList.add('show');
-    $('tnx-err').textContent = '연결 실패';
+    $('tnx-val').classList.remove('loading');
+    // 더미 데이터 제거 — 빈 상태로
     return false;
   }
 }
