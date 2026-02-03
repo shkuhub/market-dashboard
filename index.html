@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Market Insights Dashboard</title>
+<title>Pro Market Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
 :root {
@@ -16,175 +17,232 @@
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing: antialiased; }
 body { font-family: var(--sans); background: var(--bg-base); color: var(--text-primary); padding: 20px; }
-.container { max-width: 1000px; margin: 0 auto; }
-.header { text-align: center; margin: 30px 0; }
-.header-title { font-size: 14px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
-.status-wrap { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-secondary); margin-top: 10px; }
-.pulse { width: 8px; height: 8px; background: var(--toss-green); border-radius: 50%; }
-.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-@media(max-width:768px){ .grid { grid-template-columns: 1fr; } }
-.card { background: var(--bg-card); border-radius: 24px; padding: 28px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
-.card-label { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
-.card-label span { font-size: 13px; color: var(--text-muted); font-weight: 400; display: block; }
-.value-row { display: flex; align-items: baseline; gap: 8px; margin: 15px 0; min-height: 50px; }
-.card-value { font-size: 38px; font-weight: 700; color: var(--text-primary); }
-.card-change { font-size: 14px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+.container { max-width: 1100px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 30px; }
+.header-title { font-size: 14px; color: var(--text-muted); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+@media(max-width:850px){ .grid { grid-template-columns: 1fr; } }
+
+.card { background: var(--bg-card); border-radius: 28px; padding: 30px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); position: relative; display: flex; flex-direction: column; }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+.card-label { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.card-label span { font-size: 13px; color: var(--text-muted); font-weight: 400; display: block; margin-top: 2px; }
+
+.main-val-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
+.main-price { font-size: 36px; font-weight: 700; font-family: var(--mono); }
+.change-badge { font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 8px; }
 .up { color: var(--toss-red); background: #fff0f1; }
 .down { color: var(--toss-blue); background: #e8f3ff; }
-.chart-container { width: 100%; height: 70px; margin-bottom: 15px; }
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding-top: 15px; border-top: 1px solid var(--border); margin-bottom: 12px; }
-.stat-lbl { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
-.stat-val { font-size: 13px; color: var(--text-secondary); font-family: var(--mono); font-weight: 600; }
-/* 출처 표기 스타일 */
-.source-tag { font-size: 9px; color: var(--text-muted); opacity: 0.6; position: absolute; bottom: 12px; }
+
+.chart-box { width: 100%; height: 180px; margin-bottom: 20px; position: relative; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; border-top: 1px solid var(--border); padding-top: 15px; }
+.stat-item { display: flex; justify-content: space-between; align-items: center; }
+.stat-lbl { font-size: 13px; color: var(--text-muted); }
+.stat-val { font-size: 14px; color: var(--text-secondary); font-weight: 600; font-family: var(--mono); }
+
+/* F&G Gauge */
+.gauge-container { width: 100%; height: 12px; background: #eee; border-radius: 6px; margin: 15px 0; overflow: hidden; position: relative; }
+.gauge-bar { height: 100%; width: 0%; transition: width 1s ease-in-out; background: linear-gradient(to right, #f04452, #ffcd00, #00d082); }
+.source-tag { font-size: 10px; color: var(--text-muted); opacity: 0.5; margin-top: 15px; text-align: right; }
 </style>
 </head>
 <body>
+
 <div class="container">
   <div class="header">
-    <div class="header-title">Global Market Dashboard</div>
-    <div class="status-wrap"><div class="pulse"></div><span id="lastUpdated">데이터 연결 중...</span></div>
+    <div class="header-title">Market Intelligence Terminal</div>
+    <p id="lastUpdated" style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Connecting to global data...</p>
   </div>
+
   <div class="grid">
     <div class="card">
-      <div class="card-label">VIX 지수 <span>Volatility Index</span></div>
-      <div class="value-row"><span class="card-value" id="vix-val">—</span><span id="vix-chg" class="card-change"></span></div>
-      <div class="chart-container"><canvas id="vix-chart"></canvas></div>
+      <div class="card-header"><div class="card-label">VIX 지수<span>변동성 지수 (6개월 추세)</span></div></div>
+      <div class="main-val-row"><span class="main-price" id="vix-val">—</span><span id="vix-chg" class="change-badge">—</span></div>
+      <div class="chart-box"><canvas id="vixChart"></canvas></div>
       <div class="stats-grid">
-        <div><p class="stat-lbl">한달평균</p><p class="stat-val" id="vix-avg">—</p></div>
-        <div><p class="stat-lbl">데이터</p><p class="stat-val">실시간</p></div>
-        <div><p class="stat-lbl">위험도</p><p class="stat-val" id="vix-status">—</p></div>
+        <div class="stat-item"><span class="stat-lbl">1개월 평균</span><span class="stat-val" id="vix-1m-avg">—</span></div>
+        <div class="stat-item"><span class="stat-lbl">52주 최고 대비</span><span class="stat-val" id="vix-52w-rel">—</span></div>
       </div>
-      <div class="source-tag">Source: Yahoo Finance (^VIX)</div>
+      <div class="source-tag">Source: CBOE / Yahoo Finance</div>
     </div>
+
     <div class="card">
-      <div class="card-label">공포와 탐욕 지수 <span>Fear & Greed</span></div>
-      <div class="value-row"><span class="card-value" id="fg-val">—</span><span id="fg-chg" class="card-change"></span></div>
-      <div class="chart-container"><canvas id="fg-chart"></canvas></div>
+      <div class="card-header"><div class="card-label">공포와 탐욕 지수<span>Fear & Greed Index</span></div></div>
+      <div class="main-val-row"><span class="main-price" id="fg-val">—</span><span id="fg-status" class="change-badge">—</span></div>
+      <div class="gauge-container"><div class="gauge-bar" id="fg-bar"></div></div>
+      <div class="chart-box" style="height: 100px;"><canvas id="fgChart"></canvas></div>
       <div class="stats-grid">
-        <div><p class="stat-lbl">어제</p><p class="stat-val" id="fg-prev">—</p></div>
-        <div><p class="stat-lbl">1주전</p><p class="stat-val" id="fg-week">—</p></div>
-        <div><p class="stat-lbl">1년전</p><p class="stat-val" id="fg-year">—</p></div>
+        <div class="stat-item"><span class="stat-lbl">1주 전</span><span class="stat-val" id="fg-1w">—</span></div>
+        <div class="stat-item"><span class="stat-lbl">1개월 평균</span><span class="stat-val" id="fg-1m">—</span></div>
       </div>
       <div class="source-tag">Source: CNN Business</div>
     </div>
+
     <div class="card">
-      <div class="card-label">미 국채 10년 금리 <span>10Y Yield</span></div>
-      <div class="value-row"><span class="card-value" id="tnx-val">—</span><span id="tnx-chg" class="card-change"></span></div>
-      <div class="chart-container"><canvas id="tnx-chart"></canvas></div>
+      <div class="card-header"><div class="card-label">미 국채 10년 금리<span>10Y Treasury Yield (1년 추세)</span></div></div>
+      <div class="main-val-row"><span class="main-price" id="tnx-val">—</span><span id="tnx-chg" class="change-badge">—</span></div>
+      <div class="chart-box"><canvas id="tnxChart"></canvas></div>
       <div class="stats-grid">
-        <div><p class="stat-lbl">전일종가</p><p class="stat-val" id="tnx-prev">—</p></div>
-        <div><p class="stat-lbl">추세</p><p class="stat-val" id="tnx-trend">—</p></div>
-        <div><p class="stat-lbl">구분</p><p class="stat-val">국채</p></div>
+        <div class="stat-item"><span class="stat-lbl">52주 범위 내 위치</span><span class="stat-val" id="tnx-range">—</span></div>
+        <div class="stat-item"><span class="stat-lbl">추세 방향</span><span class="stat-val" id="tnx-trend">—</span></div>
       </div>
       <div class="source-tag">Source: Yahoo Finance (^TNX)</div>
     </div>
+
     <div class="card">
-      <div class="card-label">S&P 500 P/E <span>Price/Earnings</span></div>
-      <div class="value-row"><span class="card-value" id="pe-val">—</span><span id="pe-chg" class="card-change"></span></div>
-      <div class="chart-container"><canvas id="pe-chart"></canvas></div>
+      <div class="card-header"><div class="card-label">S&P 500 P/E<span>장기 밸류에이션 (5년 추세)</span></div></div>
+      <div class="main-val-row"><span class="main-price" id="pe-val">—</span><span id="pe-status" class="change-badge">—</span></div>
+      <div class="chart-box"><canvas id="peChart"></canvas></div>
       <div class="stats-grid">
-        <div><p class="stat-lbl">기준EPS</p><p class="stat-val">$241.5</p></div>
-        <div><p class="stat-lbl">역사평균</p><p class="stat-val">16.05</p></div>
-        <div><p class="stat-lbl">상태</p><p class="stat-val" id="pe-status">—</p></div>
+        <div class="stat-item"><span class="stat-lbl">10년 평균 대비</span><span class="stat-val" id="pe-10y-rel">—</span></div>
+        <div class="stat-item"><span class="stat-lbl">1년 변화폭</span><span class="stat-val" id="pe-1y-range">—</span></div>
       </div>
-      <div class="source-tag">Source: S&P Global / Yahoo (Est.)</div>
+      <div class="source-tag">Source: S&P Global / Yahoo Est.</div>
     </div>
   </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+const PROXY = "https://api.allorigins.win/get?url=";
 
-function draw(id, data, color) {
-  const c=$(id); if(!c) return;
-  const ctx=c.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const w = c.clientWidth; const h = c.clientHeight;
-  c.width = w * dpr; c.height = h * dpr;
-  ctx.scale(dpr, dpr);
-  const min=Math.min(...data), max=Math.max(...data), r=(max-min)||1;
-  const pts=data.map((v,i)=>({x:(i/(data.length-1))*w, y:(h-5)-((v-min)/r)*(h-10)}));
-  ctx.clearRect(0,0,w,h);
-  ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.lineJoin='round';
-  ctx.beginPath();
-  pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
+// 차트 기본 설정 공통함수
+const chartConfig = (label, color, data, labels, extraDatasets = []) => ({
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [{
+      label: label,
+      data: data,
+      borderColor: color,
+      borderWidth: 2,
+      pointRadius: 0,
+      fill: false,
+      tension: 0.2
+    }, ...extraDatasets]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { display: false },
+      y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 10 } } }
+    }
+  }
+});
+
+async function fetchData(ticker, range = '6mo') {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=1d`;
+  const res = await fetch(PROXY + encodeURIComponent(url));
+  const json = await res.json();
+  return JSON.parse(json.contents).chart.result[0];
 }
 
-async function getYahoo(ticker, valId, chgId, avgId, chartId) {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=1mo&interval=1d`;
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    const json = await res.json();
-    const d = JSON.parse(json.contents).chart.result[0];
-    const p = d.indicators.quote[0].close.filter(v => v !== null);
-    const cur = d.meta.regularMarketPrice;
-    const prev = d.meta.previousClose;
-    const diff = cur - prev;
-    $(valId).textContent = cur.toFixed(ticker==='^TNX'?3:2) + (ticker==='^TNX'?'%':'');
-    $(chgId).textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
-    $(chgId).className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
-    if(avgId) $(avgId).textContent = (p.reduce((a,b)=>a+b)/p.length).toFixed(1);
-    draw(chartId, p, diff >= 0 ? '#f04452' : '#3182f6');
-    return {cur, prev, p};
-  } catch(e) { return null; }
+// 1. VIX 로직
+async function initVIX() {
+  const d = await fetchData('^VIX', '6mo');
+  const prices = d.indicators.quote[0].close.filter(v => v);
+  const cur = d.meta.regularMarketPrice;
+  const prev = d.meta.previousClose;
+  const diff = cur - prev;
+  
+  $('vix-val').textContent = cur.toFixed(2);
+  $('vix-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+  $('vix-chg').className = 'change-badge ' + (diff >= 0 ? 'up' : 'down');
+  
+  // 메트릭 계산
+  const avg1m = prices.slice(-20).reduce((a,b)=>a+b,0)/20;
+  const max52w = Math.max(...prices);
+  $('vix-1m-avg').textContent = avg1m.toFixed(2);
+  $('vix-52w-rel').textContent = ((cur/max52w)*100).toFixed(1) + "%";
+
+  new Chart($('vixChart'), chartConfig('VIX', '#3182f6', prices, prices.map((_,i)=>i), [
+    { label: 'Level 15', data: Array(prices.length).fill(15), borderColor: '#00d082', borderDash: [5,5], borderWidth: 1, pointRadius: 0 },
+    { label: 'Level 20', data: Array(prices.length).fill(20), borderColor: '#ffcd00', borderDash: [5,5], borderWidth: 1, pointRadius: 0 },
+    { label: 'Level 30', data: Array(prices.length).fill(30), borderColor: '#f04452', borderDash: [5,5], borderWidth: 1, pointRadius: 0 }
+  ]));
 }
 
-async function getFG() {
-  try {
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://production.dataviz.cnn.io/index/fearandgreed/graphdata/' + new Date().toISOString().split('T')[0])}`);
-    const json = await res.json();
-    const d = JSON.parse(json.contents).fear_and_greed;
-    $('fg-val').textContent = Math.round(d.score);
-    $('fg-prev').textContent = Math.round(d.previous_close);
-    $('fg-week').textContent = Math.round(d.previous_1_week);
-    $('fg-year').textContent = Math.round(d.previous_1_year);
-    $('fg-chg').textContent = d.rating;
-    draw('fg-chart', [d.previous_1_year, d.previous_1_week, d.previous_close, d.score], '#00d082');
-  } catch(e) {}
+// 2. Fear & Greed 로직
+async function initFG() {
+  const res = await fetch(PROXY + encodeURIComponent('https://production.dataviz.cnn.io/index/fearandgreed/graphdata/' + new Date().toISOString().split('T')[0]));
+  const json = await res.json();
+  const d = JSON.parse(json.contents).fear_and_greed;
+  
+  $('fg-val').textContent = Math.round(d.score);
+  $('fg-status').textContent = d.rating.toUpperCase();
+  $('fg-bar').style.width = d.score + "%";
+  $('fg-1w').textContent = Math.round(d.previous_1_week);
+  
+  // 최근 30일 데이터 (CNN API는 그래프용 별도 데이터를 주기도 함, 여기선 이전 값들로 대체)
+  const history = [d.previous_1_year, d.previous_1_month, d.previous_1_week, d.previous_close, d.score];
+  $('fg-1m').textContent = Math.round(d.previous_1_month);
+
+  new Chart($('fgChart'), {
+    ...chartConfig('F&G Score', '#00d082', history, history.map((_,i)=>i)),
+    type: 'line',
+    options: { ...chartConfig().options, scales: { x: { display: false }, y: { min: 0, max: 100 } } }
+  });
 }
 
-async function getPE() {
-  try {
-    // S&P 500 실시간 지수(^GSPC)를 가져와서 최신 예상 EPS($241.52)로 나눕니다.
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/^GSPC?range=1mo&interval=1d`;
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    const json = await res.json();
-    const d = JSON.parse(json.contents).chart.result[0];
-    const latestPrice = d.meta.regularMarketPrice;
-    const prevPrice = d.meta.previousClose;
-    
-    // 2024-2025 S&P 500 예상 EPS 평균치 반영
-    const EPS = 241.52; 
-    const curPE = latestPrice / EPS;
-    const diff = (latestPrice - prevPrice) / EPS;
+// 3. 10Y Yield 로직
+async function initTNX() {
+  const d = await fetchData('^TNX', '1y');
+  const prices = d.indicators.quote[0].close.filter(v => v);
+  const cur = d.meta.regularMarketPrice;
+  const prev = d.meta.previousClose;
+  const bpChange = (cur - prev) * 100;
+  
+  $('tnx-val').textContent = cur.toFixed(3) + "%";
+  $('tnx-chg').textContent = (bpChange >= 0 ? '+' : '') + bpChange.toFixed(1) + " bp";
+  $('tnx-chg').className = 'change-badge ' + (bpChange >= 0 ? 'up' : 'down');
 
-    $('pe-val').textContent = curPE.toFixed(2);
-    $('pe-chg').textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2);
-    $('pe-chg').className = 'card-change ' + (diff >= 0 ? 'up' : 'down');
-    $('pe-status').textContent = curPE > 28 ? '고평가' : (curPE < 20 ? '저평가' : '적정');
-    
-    const peHistory = d.indicators.quote[0].close.filter(v=>v).map(p => p/EPS);
-    draw('pe-chart', peHistory, diff >= 0 ? '#f04452' : '#3182f6');
-  } catch(e) { $('pe-val').textContent = "연결오류"; }
+  // 이동평균선(50D) 계산
+  const ma50 = prices.map((_, i, arr) => {
+    if (i < 49) return null;
+    return arr.slice(i-49, i+1).reduce((a,b)=>a+b,0)/50;
+  });
+
+  const min52 = Math.min(...prices), max52 = Math.max(...prices);
+  $('tnx-range').textContent = (((cur - min52)/(max52 - min52))*100).toFixed(1) + "%";
+  $('tnx-trend').textContent = cur > ma50[ma50.length-1] ? "단기 상승" : "단기 하락";
+
+  new Chart($('tnxChart'), chartConfig('10Y Yield', '#191f28', prices, prices.map((_,i)=>i), [
+    { label: '50D MA', data: ma50, borderColor: '#f04452', borderWidth: 1.5, pointRadius: 0, tension: 0.1 }
+  ]));
+}
+
+// 4. S&P 500 P/E 로직
+async function initPE() {
+  const d = await fetchData('^GSPC', '5y');
+  const EPS = 241.52; // 최신 예상 EPS 기준
+  const prices = d.indicators.quote[0].close.filter(v => v);
+  const peHistory = prices.map(p => p / EPS);
+  const curPE = peHistory[peHistory.length - 1];
+  
+  const avg10y = 21.0; // 현대 주식시장(최근 10년) 평균 P/E 근사치
+  $('pe-val').textContent = curPE.toFixed(2);
+  $('pe-status').textContent = curPE > avg10y * 1.1 ? '고평가' : (curPE < avg10y * 0.9 ? '저평가' : '적정');
+  $('pe-status').className = 'change-badge ' + (curPE > avg10y * 1.1 ? 'up' : 'down');
+  
+  $('pe-10y-rel').textContent = (curPE > avg10y ? '+' : '') + (((curPE-avg10y)/avg10y)*100).toFixed(1) + "%";
+  
+  const pe1y = peHistory.slice(-252);
+  $('pe-1y-range').textContent = Math.min(...pe1y).toFixed(1) + " ~ " + Math.max(...pe1y).toFixed(1);
+
+  new Chart($('peChart'), chartConfig('P/E Ratio', '#3182f6', peHistory, peHistory.map((_,i)=>i), [
+    { label: '10Y Avg', data: Array(peHistory.length).fill(avg10y), borderColor: '#8b95a1', borderDash: [5,5], borderWidth: 1, pointRadius: 0 }
+  ]));
 }
 
 window.onload = async () => {
-  Promise.all([
-    getYahoo('^VIX', 'vix-val', 'vix-chg', 'vix-avg', 'vix-chart').then(v => {
-      if(v) $('vix-status').textContent = v.cur > 20 ? '위험' : '안정';
-    }),
-    getYahoo('^TNX', 'tnx-val', 'tnx-chg', null, 'tnx-chart').then(t => {
-      if(t) { 
-        $('tnx-prev').textContent = t.prev.toFixed(2); 
-        $('tnx-trend').textContent = t.cur > t.prev ? '상승' : '하락'; 
-      }
-    }),
-    getFG(),
-    getPE()
-  ]).then(() => {
-    $('lastUpdated').textContent = "업데이트: " + new Date().toLocaleTimeString();
-  });
+  try {
+    await Promise.all([initVIX(), initFG(), initTNX(), initPE()]);
+    $('lastUpdated').textContent = "실시간 인텔리전스 업데이트 완료: " + new Date().toLocaleString();
+  } catch (e) {
+    $('lastUpdated').textContent = "일부 데이터 로드 실패 (다시 시도해 주세요)";
+  }
 };
 </script>
 </body>
